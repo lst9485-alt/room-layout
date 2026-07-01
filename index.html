@@ -128,7 +128,7 @@
   const DOOR  = { w: 80, off: 10 };// 오른쪽 세로 벽, 위 모서리에서 10cm 떨어진 곳에 폭 80 문
 
   const items = [
-    { id: 'desk',      name: '책상', w: 170, h: 90, x: 20,  y: 20,  cls: 'desk' },
+    { id: 'desk',      name: '책상', w: 90,  h: 170, x: 20,  y: 20,  cls: 'desk' },
     { id: 'bookshelf', name: '책장', w: 80,  h: 40, x: 20,  y: 300, cls: 'bookshelf' },
     { id: 'wardrobe',  name: '옷장', w: 50,  h: 40, x: 140, y: 300, cls: 'wardrobe' },
     { id: 'chair',     name: '의자', w: 40,  h: 40, x: 80,  y: 120, cls: 'chair' },
@@ -186,10 +186,10 @@
     svg.innerHTML =
       // 벽 구멍 표시
       '<rect x="' + (wx*S - 3) + '" y="' + (y1*S) + '" width="6" height="' + (dw*S) + '" fill="#fff"/>' +
-      // 열리는 궤적(부채꼴): 위쪽 자유단 → 아래 경첩 기준으로 방 안쪽(왼쪽)으로
-      '<path d="M ' + (wx*S) + ' ' + (y1*S) + ' A ' + (dw*S) + ' ' + (dw*S) + ' 0 0 0 ' + ((wx-dw)*S) + ' ' + (y2*S) + '" fill="none" stroke="#c0392b" stroke-width="1.5" stroke-dasharray="4 3"/>' +
+      // 열리는 궤적(부채꼴): 아래쪽 자유단 → 위 경첩 기준으로 방 안쪽(왼쪽)으로
+      '<path d="M ' + (wx*S) + ' ' + (y2*S) + ' A ' + (dw*S) + ' ' + (dw*S) + ' 0 0 1 ' + ((wx-dw)*S) + ' ' + (y1*S) + '" fill="none" stroke="#c0392b" stroke-width="1.5" stroke-dasharray="4 3"/>' +
       // 열린 문짝(경첩에서 방 안쪽으로)
-      '<line x1="' + (wx*S) + '" y1="' + (y2*S) + '" x2="' + ((wx-dw)*S) + '" y2="' + (y2*S) + '" stroke="#c0392b" stroke-width="2.5"/>' +
+      '<line x1="' + (wx*S) + '" y1="' + (y1*S) + '" x2="' + ((wx-dw)*S) + '" y2="' + (y1*S) + '" stroke="#c0392b" stroke-width="2.5"/>' +
       '<text x="' + (wx*S - 8) + '" y="' + (((y1+y2)/2)*S + 4) + '" fill="#c0392b" font-size="13" font-weight="700" text-anchor="end">문</text>';
     room.appendChild(svg);
   }
@@ -276,7 +276,7 @@
 
   function resetLayout() {
     const init = [
-      [170, 90, 20,  20],
+      [90,  170, 20,  20],
       [80,  40, 20,  300],
       [50,  40, 140, 300],
       [40,  40, 80,  120],
