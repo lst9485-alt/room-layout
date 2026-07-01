@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>가구 배치도</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, "Apple SD Gothic Neo", sans-serif;
+    background: #f4f4f5;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 24px;
+    color: #222;
+  }
+  h1 { font-size: 20px; margin-bottom: 4px; }
+  .hint { font-size: 13px; color: #888; margin-bottom: 16px; }
+
+  #room {
+    position: relative;
+    background: #fff;
+    border: 3px solid #333;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+    touch-action: none;
+  }
+
+  .furniture {
+    position: absolute;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    font-size: 13px;
+    font-weight: 600;
+    color: #fff;
+    cursor: grab;
+    user-select: none;
+    border-radius: 4px;
+    line-height: 1.3;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+  }
+  .furniture:active { cursor: grabbing; }
+  .furniture .size { font-size: 10px; font-weight: 400; opacity: 0.85; }
+
+  .desk     { background: #4f83cc; }
+  .bookshelf{ background: #e08a3c; }
+  .wardrobe { background: #5aa469; }
+
+  .controls { margin-top: 16px; display: flex; gap: 8px; }
+  button {
+    padding: 8px 16px; font-size: 14px; border: none; border-radius: 6px;
+    background: #333; color: #fff; cursor: pointer;
+  }
+  button:hover { background: #555; }
+</style>
+</head>
+<body>
+  <h1>가구 배치도</h1>
+  <div class="hint">가구를 마우스로 끌어서 옮기세요 · 방 370 × 210</div>
+
+  <div id="room"></div>
+
+  <div class="controls">
+    <button onclick="resetLayout()">처음 배치로</button>
+  </div>
+
+<script>
+  // 실제 크기(cm 단위 가정) → 화면 배율
+  const SCALE = 2;               // 1cm = 2px
+  const ROOM = { w: 370, h: 210 };
+
+  const items = [
+    { id: 'desk',      name: '책상',  w: 170, h: 90, x: 10,  y: 10,  cls: 'desk' },
+    { id: 'bookshelf', name: '책장',  w: 80,  h: 40, x: 200, y: 120, cls: 'bookshelf' },
+    { id: 'wardrobe',  name: '옷장',  w: 50,  h: 40, x: 300, y: 20,  cls: 'wardrobe' },
+  ];
+
+  const room = document.getElementById('room');
+  room.style.width  = ROOM.w * SCALE + 'px';
+  room.style.height = ROOM.h * SCALE + 'px';
+
+  function render() {
+    room.innerHTML = '';
+    items.forEach(it => {
+      const el = document.createElement('div');
+      el.className = 'furniture ' + it.cls;
+      el.style.width  = it.w * SCALE + 'px';
+      el.style.height = it.h * SCALE + 'px';
+      el.style.left   = it.x * SCALE + 'px';
+      el.style.top    = it.y * SCALE + 'px';
+      el.innerHTML = it.name + '<br><span class="size">' + it.w + '×' + it.h + '</span>';
+      makeDraggable(el, it);
+      room.appendChild(el);
+    });
+  }
+
+  function makeDraggable(el, it) {
+    let startX, startY, origX, origY;
+
+    function down(e) {
+      e.preventDefault();
+      const p = point(e);
+      startX = p.x; startY = p.y;
+      origX = it.x; origY = it.y;
+      document.addEventListener('mousemove', move);
+      document.addEventListener('mouseup', up);
+      document.addEventListener('touchmove', move, { passive: false });
+      document.addEventListener('touchend', up);
+    }
+    function move(e) {
+      e.preventDefault();
+      const p = point(e);
+      let nx = origX + (p.x - startX) / SCALE;
+      let ny = origY + (p.y - startY) / SCALE;
+      // 방 밖으로 못 나가게
+      nx = Math.max(0, Math.min(ROOM.w - it.w, nx));
+      ny = Math.max(0, Math.min(ROOM.h - it.h, ny));
+      it.x = nx; it.y = ny;
+      el.style.left = nx * SCALE + 'px';
+      el.style.top  = ny * SCALE + 'px';
+    }
+    function up() {
+      document.removeEventListener('mousemove', move);
+      document.removeEventListener('mouseup', up);
+      document.removeEventListener('touchmove', move);
+      document.removeEventListener('touchend', up);
+    }
+    el.addEventListener('mousedown', down);
+    el.addEventListener('touchstart', down, { passive: false });
+  }
+
+  function point(e) {
+    if (e.touches && e.touches[0]) return { x: e.touches[0].clientX, y: e.touches[0].clientY };
+    return { x: e.clientX, y: e.clientY };
+  }
+
+  function resetLayout() {
+    items[0].x = 10;  items[0].y = 10;
+    items[1].x = 200; items[1].y = 120;
+    items[2].x = 300; items[2].y = 20;
+    render();
+  }
+
+  render();
+</script>
+</body>
+</html>
