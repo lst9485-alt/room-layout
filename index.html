@@ -33,8 +33,8 @@
 
   #room {
     position: relative;
-    border: 3px solid #333;
-    box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+    /* 벽은 테두리 대신 그림자로 — 안쪽 공간(가구가 움직이는 범위)을 정확히 맞추기 위함 */
+    box-shadow: 0 0 0 3px #333, 0 4px 20px rgba(0,0,0,0.08);
     touch-action: none;
     /* 10cm(=20px) 얇은 눈금 + 50cm(=100px) 진한 눈금 */
     background-color: #fff;
@@ -66,6 +66,7 @@
   .desk     { background: #4f83cc; }
   .bookshelf{ background: #e08a3c; }
   .wardrobe { background: #5aa469; }
+  .chair    { background: #8e6bc4; }
 
   /* 십자선 */
   #cross { position: absolute; inset: 0; pointer-events: none; z-index: 4; display: none; }
@@ -75,6 +76,11 @@
     position: absolute; background: #e11; color: #fff; font-size: 11px;
     padding: 2px 6px; border-radius: 4px; white-space: nowrap; transform: translateY(-100%);
   }
+
+  /* 줄자 */
+  #measureCatch { position: absolute; inset: 0; z-index: 7; display: none; cursor: crosshair; }
+  #measure { position: absolute; top: 0; left: 0; overflow: visible; pointer-events: none; z-index: 6; display: none; }
+  button.on { background: #c0392b; }
 
   .controls { margin-top: 16px; display: flex; gap: 8px; }
   button {
@@ -86,7 +92,7 @@
 </head>
 <body>
   <h1>가구 배치도</h1>
-  <div class="hint">가구를 마우스로 끌어서 옮기세요 · 방 210 × 370 · 오른쪽 위 문 · 눈금 10cm · 10단위로 딱 붙음</div>
+  <div class="hint">가구를 마우스로 끌어서 옮기세요 · 방 210 × 370 · 오른쪽 벽 문 · 눈금 10cm · 10단위로 딱 붙음</div>
 
   <div class="stage" id="stage">
     <div class="corner"></div>
@@ -98,24 +104,34 @@
         <div class="hline"></div>
         <div class="badge"></div>
       </div>
+      <svg id="measure">
+        <line id="mline" stroke="#c0392b" stroke-width="2"/>
+        <circle id="mp1" r="4" fill="#c0392b"/>
+        <circle id="mp2" r="4" fill="#c0392b"/>
+        <text id="mlabel" fill="#c0392b" font-size="13" font-weight="700" text-anchor="middle"></text>
+      </svg>
+      <div id="measureCatch"></div>
     </div>
   </div>
 
   <div class="controls">
     <button onclick="resetLayout()">처음 배치로</button>
+    <button id="measureBtn" onclick="toggleMeasure()">줄자 (L)</button>
   </div>
+  <div class="hint" style="margin-top:8px">가구 더블클릭(또는 두 번 탭) = 90도 회전 · L 또는 줄자 버튼 = 길이 재기</div>
 
 <script>
   const SCALE = 2;                 // 1cm = 2px
   const SNAP  = 10;                // 10cm 단위로 딱 붙임
   const RULER = 30;                // 눈금자 두께(px)
   const ROOM  = { w: 210, h: 370 };
-  const DOOR  = { w: 80, off: 10 };// 오른쪽 벽 끝에서 10cm 떨어진 곳에 폭 80 문
+  const DOOR  = { w: 80, off: 10 };// 오른쪽 세로 벽, 위 모서리에서 10cm 떨어진 곳에 폭 80 문
 
   const items = [
     { id: 'desk',      name: '책상', w: 170, h: 90, x: 20,  y: 20,  cls: 'desk' },
     { id: 'bookshelf', name: '책장', w: 80,  h: 40, x: 20,  y: 300, cls: 'bookshelf' },
     { id: 'wardrobe',  name: '옷장', w: 50,  h: 40, x: 140, y: 300, cls: 'wardrobe' },
+    { id: 'chair',     name: '의자', w: 40,  h: 40, x: 80,  y: 120, cls: 'chair' },
   ];
 
   const roomWpx = ROOM.w * SCALE, roomHpx = ROOM.h * SCALE;
@@ -157,20 +173,24 @@
   function tick(cls) { const d = document.createElement('div'); d.className = cls; return d; }
   function label(v)  { const d = document.createElement('div'); d.className = 'tlabel'; d.textContent = v; return d; }
 
-  // ---- 문 (오른쪽 위) ----
+  // ---- 문 (오른쪽 세로 벽) ----
   function drawDoor() {
     const S = SCALE, dw = DOOR.w;
-    const x2 = ROOM.w - DOOR.off;   // 경첩 쪽 (오른쪽)
-    const x1 = x2 - dw;             // 문 열림 시작
+    const wx = ROOM.w;              // 오른쪽 벽 x좌표
+    const y1 = DOOR.off;            // 문 열림 위쪽 끝
+    const y2 = y1 + dw;             // 경첩 쪽 (아래)
     const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
     svg.setAttribute('width', roomWpx);
     svg.setAttribute('height', roomHpx);
     svg.setAttribute('style', 'position:absolute;top:0;left:0;overflow:visible;z-index:2;pointer-events:none;');
     svg.innerHTML =
-      '<rect x="' + (x1*S) + '" y="-3" width="' + (dw*S) + '" height="6" fill="#fff"/>' +
-      '<path d="M ' + (x1*S) + ' 0 A ' + (dw*S) + ' ' + (dw*S) + ' 0 0 0 ' + (x2*S) + ' ' + (dw*S) + '" fill="none" stroke="#c0392b" stroke-width="1.5" stroke-dasharray="4 3"/>' +
-      '<line x1="' + (x2*S) + '" y1="0" x2="' + (x2*S) + '" y2="' + (dw*S) + '" stroke="#c0392b" stroke-width="2.5"/>' +
-      '<text x="' + ((x1+dw/2)*S) + '" y="16" fill="#c0392b" font-size="13" font-weight="700" text-anchor="middle">문</text>';
+      // 벽 구멍 표시
+      '<rect x="' + (wx*S - 3) + '" y="' + (y1*S) + '" width="6" height="' + (dw*S) + '" fill="#fff"/>' +
+      // 열리는 궤적(부채꼴): 위쪽 자유단 → 아래 경첩 기준으로 방 안쪽(왼쪽)으로
+      '<path d="M ' + (wx*S) + ' ' + (y1*S) + ' A ' + (dw*S) + ' ' + (dw*S) + ' 0 0 0 ' + ((wx-dw)*S) + ' ' + (y2*S) + '" fill="none" stroke="#c0392b" stroke-width="1.5" stroke-dasharray="4 3"/>' +
+      // 열린 문짝(경첩에서 방 안쪽으로)
+      '<line x1="' + (wx*S) + '" y1="' + (y2*S) + '" x2="' + ((wx-dw)*S) + '" y2="' + (y2*S) + '" stroke="#c0392b" stroke-width="2.5"/>' +
+      '<text x="' + (wx*S - 8) + '" y="' + (((y1+y2)/2)*S + 4) + '" fill="#c0392b" font-size="13" font-weight="700" text-anchor="end">문</text>';
     room.appendChild(svg);
   }
 
@@ -225,6 +245,20 @@
     }
     el.addEventListener('mousedown', down);
     el.addEventListener('touchstart', down, { passive: false });
+    el.addEventListener('dblclick', () => rotate(el, it));
+  }
+
+  // ---- 90도 회전 (가로세로 바꿈) ----
+  function rotate(el, it) {
+    const nw = it.h, nh = it.w;
+    if (nw > ROOM.w || nh > ROOM.h) return;      // 방보다 크면 못 돌림
+    it.w = nw; it.h = nh;
+    it.x = Math.max(0, Math.min(ROOM.w - nw, it.x));
+    it.y = Math.max(0, Math.min(ROOM.h - nh, it.y));
+    el.style.width  = nw * SCALE + 'px';
+    el.style.height = nh * SCALE + 'px';
+    el.querySelector('.size').textContent = nw + '×' + nh;
+    place(el, it);
   }
 
   function showCross(it) {
@@ -241,11 +275,72 @@
   }
 
   function resetLayout() {
-    items[0].x = 20;  items[0].y = 20;
-    items[1].x = 20;  items[1].y = 300;
-    items[2].x = 140; items[2].y = 300;
+    const init = [
+      [170, 90, 20,  20],
+      [80,  40, 20,  300],
+      [50,  40, 140, 300],
+      [40,  40, 80,  120],
+    ];
+    items.forEach((it, i) => { it.w = init[i][0]; it.h = init[i][1]; it.x = init[i][2]; it.y = init[i][3]; });
     renderFurniture();
   }
+
+  // ---- 줄자 (L 키 / 버튼) ----
+  const measureSvg = document.getElementById('measure');
+  const mline = document.getElementById('mline');
+  const mp1 = document.getElementById('mp1'), mp2 = document.getElementById('mp2');
+  const mlabel = document.getElementById('mlabel');
+  const catchEl = document.getElementById('measureCatch');
+  const measureBtn = document.getElementById('measureBtn');
+  let measureMode = false, measuring = false, mStart = null;
+
+  function toggleMeasure() { setMeasure(!measureMode); }
+  function setMeasure(on) {
+    measureMode = on;
+    catchEl.style.display = on ? 'block' : 'none';
+    measureBtn.classList.toggle('on', on);
+  }
+  function relPos(e) {
+    const r = room.getBoundingClientRect(), p = point(e);
+    let x = (p.x - r.left) / SCALE, y = (p.y - r.top) / SCALE;
+    x = Math.max(0, Math.min(ROOM.w, x));
+    y = Math.max(0, Math.min(ROOM.h, y));
+    return { x, y };
+  }
+  function drawM(a, b) {
+    const ax = a.x*SCALE, ay = a.y*SCALE, bx = b.x*SCALE, by = b.y*SCALE;
+    mline.setAttribute('x1', ax); mline.setAttribute('y1', ay);
+    mline.setAttribute('x2', bx); mline.setAttribute('y2', by);
+    mp1.setAttribute('cx', ax); mp1.setAttribute('cy', ay);
+    mp2.setAttribute('cx', bx); mp2.setAttribute('cy', by);
+    const len = Math.round(Math.hypot(b.x - a.x, b.y - a.y));
+    mlabel.setAttribute('x', (ax + bx) / 2);
+    mlabel.setAttribute('y', (ay + by) / 2 - 8);
+    mlabel.textContent = len + ' cm';
+  }
+  function mDown(e) {
+    e.preventDefault();
+    mStart = relPos(e); measuring = true;
+    measureSvg.style.display = 'block'; drawM(mStart, mStart);
+    document.addEventListener('mousemove', mMove);
+    document.addEventListener('mouseup', mUp);
+    document.addEventListener('touchmove', mMove, { passive: false });
+    document.addEventListener('touchend', mUp);
+  }
+  function mMove(e) { if (!measuring) return; e.preventDefault(); drawM(mStart, relPos(e)); }
+  function mUp() {
+    measuring = false;
+    document.removeEventListener('mousemove', mMove);
+    document.removeEventListener('mouseup', mUp);
+    document.removeEventListener('touchmove', mMove);
+    document.removeEventListener('touchend', mUp);
+  }
+  catchEl.addEventListener('mousedown', mDown);
+  catchEl.addEventListener('touchstart', mDown, { passive: false });
+  document.addEventListener('keydown', e => {
+    if (e.key === 'l' || e.key === 'L') toggleMeasure();
+    else if (e.key === 'Escape') { setMeasure(false); measureSvg.style.display = 'none'; }
+  });
 </script>
 </body>
 </html>
