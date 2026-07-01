@@ -18,12 +18,31 @@
   h1 { font-size: 20px; margin-bottom: 4px; }
   .hint { font-size: 13px; color: #888; margin-bottom: 16px; }
 
+  .stage { display: grid; }
+  .corner { background: transparent; }
+
+  .ruler-h, .ruler-v { position: relative; color: #999; font-size: 10px; }
+  .tick { position: absolute; background: #bbb; }
+  .ruler-h .tick { bottom: 0; width: 1px; height: 4px; }
+  .ruler-h .tick.major { height: 9px; background: #888; }
+  .ruler-v .tick { right: 0; height: 1px; width: 4px; }
+  .ruler-v .tick.major { width: 9px; background: #888; }
+  .tlabel { position: absolute; color: #666; font-size: 10px; }
+  .ruler-h .tlabel { bottom: 10px; transform: translateX(-50%); }
+  .ruler-v .tlabel { right: 11px; transform: translateY(-50%); }
+
   #room {
     position: relative;
-    background: #fff;
     border: 3px solid #333;
     box-shadow: 0 4px 20px rgba(0,0,0,0.08);
     touch-action: none;
+    /* 10cm(=20px) 얇은 눈금 + 50cm(=100px) 진한 눈금 */
+    background-color: #fff;
+    background-image:
+      repeating-linear-gradient(to right,  #eef0f3 0 1px, transparent 1px 20px),
+      repeating-linear-gradient(to bottom, #eef0f3 0 1px, transparent 1px 20px),
+      repeating-linear-gradient(to right,  #d3d7dd 0 1px, transparent 1px 100px),
+      repeating-linear-gradient(to bottom, #d3d7dd 0 1px, transparent 1px 100px);
   }
 
   .furniture {
@@ -37,16 +56,25 @@
     color: #fff;
     cursor: grab;
     user-select: none;
-    border-radius: 4px;
+    border-radius: 3px;
     line-height: 1.3;
-    box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+    box-shadow: 0 2px 6px rgba(0,0,0,0.25);
+    z-index: 3;
   }
   .furniture:active { cursor: grabbing; }
-  .furniture .size { font-size: 10px; font-weight: 400; opacity: 0.85; }
-
+  .furniture .size { font-size: 10px; font-weight: 400; opacity: 0.9; }
   .desk     { background: #4f83cc; }
   .bookshelf{ background: #e08a3c; }
   .wardrobe { background: #5aa469; }
+
+  /* 십자선 */
+  #cross { position: absolute; inset: 0; pointer-events: none; z-index: 4; display: none; }
+  #cross .vline { position: absolute; top: 0; bottom: 0; width: 0; border-left: 1px dashed #e11; }
+  #cross .hline { position: absolute; left: 0; right: 0; height: 0; border-top: 1px dashed #e11; }
+  #cross .badge {
+    position: absolute; background: #e11; color: #fff; font-size: 11px;
+    padding: 2px 6px; border-radius: 4px; white-space: nowrap; transform: translateY(-100%);
+  }
 
   .controls { margin-top: 16px; display: flex; gap: 8px; }
   button {
@@ -58,52 +86,118 @@
 </head>
 <body>
   <h1>가구 배치도</h1>
-  <div class="hint">가구를 마우스로 끌어서 옮기세요 · 방 370 × 210</div>
+  <div class="hint">가구를 마우스로 끌어서 옮기세요 · 방 210 × 370 · 오른쪽 위 문 · 눈금 10cm · 10단위로 딱 붙음</div>
 
-  <div id="room"></div>
+  <div class="stage" id="stage">
+    <div class="corner"></div>
+    <div class="ruler-h" id="topRuler"></div>
+    <div class="ruler-v" id="leftRuler"></div>
+    <div id="room">
+      <div id="cross">
+        <div class="vline"></div>
+        <div class="hline"></div>
+        <div class="badge"></div>
+      </div>
+    </div>
+  </div>
 
   <div class="controls">
     <button onclick="resetLayout()">처음 배치로</button>
   </div>
 
 <script>
-  // 실제 크기(cm 단위 가정) → 화면 배율
-  const SCALE = 2;               // 1cm = 2px
-  const ROOM = { w: 370, h: 210 };
+  const SCALE = 2;                 // 1cm = 2px
+  const SNAP  = 10;                // 10cm 단위로 딱 붙임
+  const RULER = 30;                // 눈금자 두께(px)
+  const ROOM  = { w: 210, h: 370 };
+  const DOOR  = { w: 80, off: 10 };// 오른쪽 벽 끝에서 10cm 떨어진 곳에 폭 80 문
 
   const items = [
-    { id: 'desk',      name: '책상',  w: 170, h: 90, x: 10,  y: 10,  cls: 'desk' },
-    { id: 'bookshelf', name: '책장',  w: 80,  h: 40, x: 200, y: 120, cls: 'bookshelf' },
-    { id: 'wardrobe',  name: '옷장',  w: 50,  h: 40, x: 300, y: 20,  cls: 'wardrobe' },
+    { id: 'desk',      name: '책상', w: 170, h: 90, x: 20,  y: 20,  cls: 'desk' },
+    { id: 'bookshelf', name: '책장', w: 80,  h: 40, x: 20,  y: 300, cls: 'bookshelf' },
+    { id: 'wardrobe',  name: '옷장', w: 50,  h: 40, x: 140, y: 300, cls: 'wardrobe' },
   ];
 
-  const room = document.getElementById('room');
-  room.style.width  = ROOM.w * SCALE + 'px';
-  room.style.height = ROOM.h * SCALE + 'px';
+  const roomWpx = ROOM.w * SCALE, roomHpx = ROOM.h * SCALE;
+  const stage = document.getElementById('stage');
+  const room  = document.getElementById('room');
+  const cross = document.getElementById('cross');
+  const vline = cross.querySelector('.vline');
+  const hline = cross.querySelector('.hline');
+  const badge = cross.querySelector('.badge');
 
-  function render() {
-    room.innerHTML = '';
+  stage.style.gridTemplateColumns = RULER + 'px ' + roomWpx + 'px';
+  stage.style.gridTemplateRows    = RULER + 'px ' + roomHpx + 'px';
+  room.style.width  = roomWpx + 'px';
+  room.style.height = roomHpx + 'px';
+
+  buildRulers();
+  drawDoor();
+  renderFurniture();
+
+  // ---- 눈금자 ----
+  function buildRulers() {
+    const top = document.getElementById('topRuler');
+    const left = document.getElementById('leftRuler');
+    for (let c = 0; c <= ROOM.w; c += 10) {
+      const major = c % 50 === 0;
+      const t = tick('tick' + (major ? ' major' : ''));
+      t.style.left = (c * SCALE) + 'px';
+      top.appendChild(t);
+      if (major) { const l = label(c); l.style.left = (c * SCALE) + 'px'; top.appendChild(l); }
+    }
+    for (let c = 0; c <= ROOM.h; c += 10) {
+      const major = c % 50 === 0;
+      const t = tick('tick' + (major ? ' major' : ''));
+      t.style.top = (c * SCALE) + 'px';
+      left.appendChild(t);
+      if (major) { const l = label(c); l.style.top = (c * SCALE) + 'px'; left.appendChild(l); }
+    }
+  }
+  function tick(cls) { const d = document.createElement('div'); d.className = cls; return d; }
+  function label(v)  { const d = document.createElement('div'); d.className = 'tlabel'; d.textContent = v; return d; }
+
+  // ---- 문 (오른쪽 위) ----
+  function drawDoor() {
+    const S = SCALE, dw = DOOR.w;
+    const x2 = ROOM.w - DOOR.off;   // 경첩 쪽 (오른쪽)
+    const x1 = x2 - dw;             // 문 열림 시작
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.setAttribute('width', roomWpx);
+    svg.setAttribute('height', roomHpx);
+    svg.setAttribute('style', 'position:absolute;top:0;left:0;overflow:visible;z-index:2;pointer-events:none;');
+    svg.innerHTML =
+      '<rect x="' + (x1*S) + '" y="-3" width="' + (dw*S) + '" height="6" fill="#fff"/>' +
+      '<path d="M ' + (x1*S) + ' 0 A ' + (dw*S) + ' ' + (dw*S) + ' 0 0 0 ' + (x2*S) + ' ' + (dw*S) + '" fill="none" stroke="#c0392b" stroke-width="1.5" stroke-dasharray="4 3"/>' +
+      '<line x1="' + (x2*S) + '" y1="0" x2="' + (x2*S) + '" y2="' + (dw*S) + '" stroke="#c0392b" stroke-width="2.5"/>' +
+      '<text x="' + ((x1+dw/2)*S) + '" y="16" fill="#c0392b" font-size="13" font-weight="700" text-anchor="middle">문</text>';
+    room.appendChild(svg);
+  }
+
+  // ---- 가구 ----
+  function renderFurniture() {
+    room.querySelectorAll('.furniture').forEach(e => e.remove());
     items.forEach(it => {
       const el = document.createElement('div');
       el.className = 'furniture ' + it.cls;
       el.style.width  = it.w * SCALE + 'px';
       el.style.height = it.h * SCALE + 'px';
-      el.style.left   = it.x * SCALE + 'px';
-      el.style.top    = it.y * SCALE + 'px';
+      place(el, it);
       el.innerHTML = it.name + '<br><span class="size">' + it.w + '×' + it.h + '</span>';
       makeDraggable(el, it);
       room.appendChild(el);
     });
   }
+  function place(el, it) { el.style.left = it.x * SCALE + 'px'; el.style.top = it.y * SCALE + 'px'; }
 
   function makeDraggable(el, it) {
     let startX, startY, origX, origY;
-
     function down(e) {
       e.preventDefault();
       const p = point(e);
-      startX = p.x; startY = p.y;
-      origX = it.x; origY = it.y;
+      startX = p.x; startY = p.y; origX = it.x; origY = it.y;
+      cross.style.display = 'block';
+      showCross(it);
       document.addEventListener('mousemove', move);
       document.addEventListener('mouseup', up);
       document.addEventListener('touchmove', move, { passive: false });
@@ -114,14 +208,16 @@
       const p = point(e);
       let nx = origX + (p.x - startX) / SCALE;
       let ny = origY + (p.y - startY) / SCALE;
-      // 방 밖으로 못 나가게
+      nx = Math.round(nx / SNAP) * SNAP;          // 10단위 딱 붙음
+      ny = Math.round(ny / SNAP) * SNAP;
       nx = Math.max(0, Math.min(ROOM.w - it.w, nx));
       ny = Math.max(0, Math.min(ROOM.h - it.h, ny));
       it.x = nx; it.y = ny;
-      el.style.left = nx * SCALE + 'px';
-      el.style.top  = ny * SCALE + 'px';
+      place(el, it);
+      showCross(it);
     }
     function up() {
+      cross.style.display = 'none';
       document.removeEventListener('mousemove', move);
       document.removeEventListener('mouseup', up);
       document.removeEventListener('touchmove', move);
@@ -131,19 +227,25 @@
     el.addEventListener('touchstart', down, { passive: false });
   }
 
+  function showCross(it) {
+    vline.style.left = it.x * SCALE + 'px';
+    hline.style.top  = it.y * SCALE + 'px';
+    badge.style.left = it.x * SCALE + 4 + 'px';
+    badge.style.top  = it.y * SCALE + 'px';
+    badge.textContent = it.x + ', ' + it.y + '  ·  ' + it.w + '×' + it.h;
+  }
+
   function point(e) {
     if (e.touches && e.touches[0]) return { x: e.touches[0].clientX, y: e.touches[0].clientY };
     return { x: e.clientX, y: e.clientY };
   }
 
   function resetLayout() {
-    items[0].x = 10;  items[0].y = 10;
-    items[1].x = 200; items[1].y = 120;
-    items[2].x = 300; items[2].y = 20;
-    render();
+    items[0].x = 20;  items[0].y = 20;
+    items[1].x = 20;  items[1].y = 300;
+    items[2].x = 140; items[2].y = 300;
+    renderFurniture();
   }
-
-  render();
 </script>
 </body>
 </html>
