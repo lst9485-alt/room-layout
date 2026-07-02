@@ -135,12 +135,14 @@
   const ROOM  = { w: 210, h: 370 };
   const DOOR  = { w: 80, off: 10 };// 오른쪽 세로 벽, 위 모서리에서 10cm 떨어진 곳에 폭 80 문
 
-  const items = [
+  // 초기 배치값 단일 정본 — resetLayout도 이 값에서 복원한다
+  const INITIAL = [
     { id: 'desk',      name: '책상', w: 90,  h: 170, x: 20,  y: 20,  cls: 'desk' },
     { id: 'bookshelf', name: '책장', w: 80,  h: 40, x: 20,  y: 300, cls: 'bookshelf' },
     { id: 'wardrobe',  name: '옷장', w: 50,  h: 40, x: 140, y: 300, cls: 'wardrobe' },
     { id: 'chair',     name: '의자', w: 40,  h: 40, x: 80,  y: 120, cls: 'chair' },
   ];
+  const items = INITIAL.map(o => ({ ...o }));
 
   const roomWpx = ROOM.w * SCALE, roomHpx = ROOM.h * SCALE;
   const stage = document.getElementById('stage');
@@ -291,13 +293,7 @@
   }
 
   function resetLayout() {
-    const init = [
-      [90,  170, 20,  20],
-      [80,  40, 20,  300],
-      [50,  40, 140, 300],
-      [40,  40, 80,  120],
-    ];
-    items.forEach((it, i) => { it.w = init[i][0]; it.h = init[i][1]; it.x = init[i][2]; it.y = init[i][3]; });
+    items.forEach((it, i) => Object.assign(it, INITIAL[i]));
     renderFurniture();
   }
 
@@ -315,6 +311,11 @@
     measureMode = on;
     catchEl.style.display = on ? 'block' : 'none';
     measureBtn.classList.toggle('on', on);
+    if (!on) {                       // 끌 때: 진행 중 측정 종료 + 그려둔 선 정리
+      if (measuring) mUp();
+      measuring = false; mStart = null;
+      measureSvg.style.display = 'none';
+    }
   }
   function relPos(e) {
     const r = room.getBoundingClientRect(), p = point(e);
@@ -354,8 +355,10 @@
   catchEl.addEventListener('mousedown', mDown);
   catchEl.addEventListener('touchstart', mDown, { passive: false });
   document.addEventListener('keydown', e => {
+    const t = e.target;
+    if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
     if (e.key === 'l' || e.key === 'L') toggleMeasure();
-    else if (e.key === 'Escape') { setMeasure(false); measureSvg.style.display = 'none'; }
+    else if (e.key === 'Escape') setMeasure(false);
   });
 </script>
 </body>
