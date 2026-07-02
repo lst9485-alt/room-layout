@@ -67,6 +67,14 @@
   .bookshelf{ background: #e08a3c; }
   .wardrobe { background: #5aa469; }
   .chair    { background: #8e6bc4; }
+  .rot-handle {
+    position: absolute; top: 2px; right: 2px; width: 20px; height: 20px;
+    background: rgba(255,255,255,0.92); color: #333; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 14px; line-height: 1; cursor: pointer; user-select: none;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.35);
+  }
+  .rot-handle:active { background: #ffd24d; }
 
   /* 십자선 */
   #cross { position: absolute; inset: 0; pointer-events: none; z-index: 4; display: none; }
@@ -118,7 +126,7 @@
     <button onclick="resetLayout()">처음 배치로</button>
     <button id="measureBtn" onclick="toggleMeasure()">줄자 (L)</button>
   </div>
-  <div class="hint" style="margin-top:8px">가구 더블클릭(또는 두 번 탭) = 90도 회전 · L 또는 줄자 버튼 = 길이 재기</div>
+  <div class="hint" style="margin-top:8px">가구의 ⟳ 버튼(또는 더블클릭) = 90도 회전 · L 또는 줄자 버튼 = 길이 재기</div>
 
 <script>
   const SCALE = 2;                 // 1cm = 2px
@@ -204,6 +212,14 @@
       el.style.height = it.h * SCALE + 'px';
       place(el, it);
       el.innerHTML = it.name + '<br><span class="size">' + it.w + '×' + it.h + '</span>';
+      const rot = document.createElement('div');
+      rot.className = 'rot-handle';
+      rot.textContent = '⟳';
+      rot.title = '회전';
+      rot.addEventListener('mousedown', e => e.stopPropagation());
+      rot.addEventListener('touchstart', e => e.stopPropagation(), { passive: true });
+      rot.addEventListener('click', e => { e.stopPropagation(); rotate(el, it); });
+      el.appendChild(rot);
       makeDraggable(el, it);
       room.appendChild(el);
     });
